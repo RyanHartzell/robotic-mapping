@@ -4,9 +4,10 @@ This repository contains material for the Robotic Mapping and Localization cours
 ## Instructor
 Kaveh Fathian, Assistant Professor, Computer Science Department
 - Office: Brown 280-N
-- Office hours: Tue/Thu 10:45-11:30am (after class)
+- Email: fathian@ariarobotics.com
 - Personal website: https://sites.google.com/view/kavehfathian/
 - Lab website: https://www.ariarobotics.com/
+
 
 
 ## Course Description
