@@ -1,17 +1,6 @@
 # Robotic Mapping and Localization
 This repository contains material for the Robotic Mapping and Localization course, taught at the Colorado School of Mines Computer Science Department.
 
-<<<<<<< HEAD
-=======
-## Instructor
-Kaveh Fathian, Assistant Professor, Computer Science Department
-- Office: Brown 280-N
-- Email: fathian@ariarobotics.com
-- Personal website: https://sites.google.com/view/kavehfathian/
-- Lab website: https://www.ariarobotics.com/
-
->>>>>>> c98d87e5a6491f7f4264fe38b3debab70b5e7368
-
 
 ## Course Description
 In this course, you will learn how to use robot sensors, such as cameras or laser scanners, to create a 3D map of the environment, and locate the robot within the environment. This is commonly known as simultaneous localization and mapping (SLAM). The course will cover both the front-end and back-end SLAM techniques. Front-end algorithms use raw sensor data (such as camera images) to create primitive 3D environment maps and position estimates of the sensor in this map. The front-end outputs are passed into the back-end algorithms, which refine the results by, for example, removing the outliers and fusing local 3D maps to create a consistent map of the entire environment.
@@ -24,7 +13,6 @@ Knowledge of
 - Linear algebra, calculus, probability, and statistics
 - Linux, Algorithms, C++, and Python
 - Computer vision is helpful, but is not required
-<<<<<<< HEAD
 
 
 ## Instructor
@@ -34,5 +22,5 @@ Kaveh Fathian, Assistant Professor, Computer Science Department
 - Personal website: https://sites.google.com/view/kavehfathian/
 - Lab website: https://www.ariarobotics.com/
 
-=======
->>>>>>> c98d87e5a6491f7f4264fe38b3debab70b5e7368
+## References & Acknolegements
+The material of this course is collected from severl courses, lectures, and code repositories. The corresponding references are cited at the end of each lecture slide.
