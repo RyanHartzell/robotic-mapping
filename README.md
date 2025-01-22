@@ -1,4 +1,5 @@
 # Robotic Mapping and Localization
+![map-animation](./resources/img/map-animation.gif)
 This repository contains material for the Robotic Mapping and Localization course, taught at the Colorado School of Mines Computer Science Department.
 
 
