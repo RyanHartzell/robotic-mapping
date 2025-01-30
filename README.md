@@ -19,8 +19,6 @@ Knowledge of
 
 ## Instructor
 Kaveh Fathian, Assistant Professor, Computer Science Department
-- Office: Brown 280-N
-- Office hours: Tue/Thu 10:45-11:30am (after class)
 - Personal website: https://sites.google.com/view/kavehfathian/
 - Lab website: https://www.ariarobotics.com/
 
