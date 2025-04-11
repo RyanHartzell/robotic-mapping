@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.22)
 
 project(calib LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 SET(CMAKE_CXX_FLAGS "-D DEBUG -Wall -Wfatal-errors -Wextra -Wno-unused-variable")
@@ -43,14 +43,8 @@ set(SOURCES
     src/main.cpp    
     )
 add_executable(lidarslam ${SOURCES})
-add_executable(gendata src/generate_data.cpp)
 
 target_link_libraries(lidarslam 
-                      ${OpenCV_LIBS} 
-                      Open3D::Open3D 
-                      Eigen3::Eigen
-                      )
-target_link_libraries(gendata 
                       ${OpenCV_LIBS} 
                       Open3D::Open3D 
                       Eigen3::Eigen
