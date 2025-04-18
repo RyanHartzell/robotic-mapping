@@ -49,9 +49,8 @@ For installing OpenCV within container:
 
 
 
-## Build Issues:
+## Troubleshooting Docker Build Issues 
 
-### Troubleshooting Docker Build Issues 
 
 Over the past, some students encountered issues building the Docker containers, particularly related to the OpenCV and Open3D library installations during the build process. These problems seem more common on older computers/laptops with limited system resources (RAM, CPU).
 
@@ -200,6 +199,5 @@ Here's how:
 7.  **Retry Your Docker Build**
     * Attempt your `docker build` command again for the devcontainer. With more RAM and potentially CPU resources available, the build process (especially heavy compilation like Open3D) should be less likely to fail due to resource exhaustion.
 
----
 
 **Note:** Monitor your system's overall performance during the Docker build after making these changes. If Windows becomes unresponsive, you may have allocated too many resources to WSL 2 and might need to lower the `memory` or `processors` values in `.wslconfig` (remembering to `wsl --shutdown` again after edits). If the build still fails, consider reducing the parallelism in the Dockerfile's `make` command (e.g., `make -j4`) as a complementary step.
