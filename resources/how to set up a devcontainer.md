@@ -61,7 +61,7 @@ While the `Dockerfile` we provide builds correctly on newer hardware, this guide
 ### Steps to Resolve Build Issues:
 
 1.  **Start Completely Fresh**
-    * Remove **all** existing Docker images, containers, and volumes related to this assignment. You can often do this easily within Docker Desktop by clicking the "trash" icon next to the respective items in the Images, Containers, or Volumes sections.
+    * Remove **all** existing Docker images, containers, and volumes. You can often do this easily within Docker Desktop by clicking the "trash" icon next to the respective items in the Images, Containers, or Volumes sections.
     * If you have modified **any** files from the original repository (especially in the `.devcontainer` folder), **clone the repository again** from the source to ensure you have the pristine, tested versions.
     * **Warning:** If you make custom changes to files within the `.devcontainer` folder (like `Dockerfile` or `devcontainer.json`), you are responsible for debugging any resulting issues. Stick to the original files provided for the best chance of success with these instructions.
 
