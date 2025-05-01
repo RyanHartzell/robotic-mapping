@@ -85,6 +85,7 @@ This example uses a simplified Lidar-IMU SLAM package (`lio-slam`):
         ```
     * **Install Dependencies using `rosdep`:** This tool checks the `package.xml` files within your `src` folder and installs required system dependencies
         ```bash
+        sudo apt install python3-rosdep2
         sudo rosdep init # Run this once if you haven't before
         rosdep update
         rosdep install --from-paths src --ignore-src -y --rosdistro humble
