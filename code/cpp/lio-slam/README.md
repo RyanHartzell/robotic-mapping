@@ -39,7 +39,7 @@ This package provides a LiDAR-IMU based SLAM system for ROS 2 Humble. It integra
 3.  **Install Dependencies:** Navigate to the root of your workspace and use `rosdep` to install dependencies listed in the package manifests (`package.xml`).
     ```bash
     cd ~/lio_ws 
-    sudo apt install python3-rosdep2 # Run this only for the first time
+    sudo apt install python3-rosdep2 # Run this only for get an error that rosdep is missing
     sudo rosdep init
     rosdep update
     rosdep install --from-paths src --ignore-src -y --rosdistro humble
