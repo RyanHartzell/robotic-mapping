@@ -5,6 +5,8 @@
 #include <fstream>
 #include <thread>
 #include <chrono>
+#include <sstream> // Added for std::stringstream used in CSV parsing
+#include <stdexcept> // Added for std::stod exception handling
 
 // OpenCV Headers
 #include "opencv2/opencv.hpp"
@@ -35,21 +37,51 @@ int main() {
 const std::string image_folder = "../data/Synthetic_base/images/";
 const std::string image_pattern = image_folder + "*.png";
 const std::string calib_file = "../data/Synthetic_base/camera_calibration.json";
-const std::string gt_traj_file = "../data/Synthetic_base/camera_trajectory_tum.txt";
+const std::string gt_timestamp_file = "../data/Synthetic_base/timings.csv";
 const std::string estimated_traj_file = "../data/Synthetic_base/estimated_trajectory.txt";
+// const std::string image_folder = "../data/Synthetic_competition/images/";
+// const std::string image_pattern = image_folder + "*.png";
+// const std::string calib_file = "../data/Synthetic_competition/camera_calibration.json";
+// const std::string gt_timestamp_file = "../data/Synthetic_competition/timings.csv";
+// const std::string estimated_traj_file = "../data/Synthetic_competition/estimated_trajectory.txt";
 
 // --- Load ground truth timestamps ---
 std::vector<double> timestamps;
-std::ifstream gt_file(gt_traj_file);
+std::ifstream gt_file(gt_timestamp_file);
 if (!gt_file.is_open()) {
-    std::cerr << "ERROR: Could not open ground truth file: " << gt_traj_file << std::endl;
+    std::cerr << "ERROR: Could not open timestamp file: " << gt_timestamp_file << std::endl;
     return -1;
 }
 std::string line;
+
+// Skip the header line
+if (!std::getline(gt_file, line)) {
+     std::cerr << "ERROR: Could not read header line from " << gt_timestamp_file << std::endl;
+     gt_file.close();
+     return -1;
+}
+
 while (std::getline(gt_file, line)) {
-    std::istringstream iss(line);
-    double timestamp;
-    if (iss >> timestamp) timestamps.push_back(timestamp);
+    std::stringstream ss(line);
+    std::string segment;
+    long long timestamp_ns = 0;
+
+    // Get the first segment (timestamp) before the comma
+    if (std::getline(ss, segment, ',')) {
+        try {
+            // Convert string segment to long long for nanoseconds
+            timestamp_ns = std::stoll(segment);
+            // Convert nanoseconds to seconds (double) and add to vector
+            timestamps.push_back(static_cast<double>(timestamp_ns) / 1.0e9);
+        } catch (const std::invalid_argument& ia) {
+            std::cerr << "Warning: Invalid timestamp format on line: " << line << " (" << ia.what() << "). Skipping." << std::endl;
+        } catch (const std::out_of_range& oor) {
+            std::cerr << "Warning: Timestamp out of range on line: " << line << " (" << oor.what() << "). Skipping." << std::endl;
+        }
+    } else if (!line.empty()) { // Handle lines that might not have a comma but aren't empty
+         std::cerr << "Warning: Malformed line (no comma found or empty timestamp): " << line << ". Skipping." << std::endl;
+    }
+    // We only care about the first column (timestamp), so we don't need to read the rest of the line.
 }
 gt_file.close();
 
@@ -85,8 +117,26 @@ if (image_files.empty()) {
 std::sort(image_files.begin(), image_files.end());
 
 if (timestamps.size() != image_files.size()) {
-    std::cerr << "ERROR: Timestamp count (" << timestamps.size() 
-                << ") doesn't match image count (" << image_files.size() << ")" << std::endl;
+    std::cerr << "ERROR: Timestamp count (" << timestamps.size()
+              << ") doesn't match image count (" << image_files.size() << ")" << std::endl;
+    // Add a small debug print to see the last few timestamps read vs expected
+    if (!timestamps.empty()) {
+        std::cerr << "Last few timestamps read: ";
+        size_t start_idx = (timestamps.size() > 5) ? timestamps.size() - 5 : 0;
+        for (size_t i = start_idx; i < timestamps.size(); ++i) {
+            std::cerr << timestamps[i] << " ";
+        }
+        std::cerr << std::endl;
+    }
+     if (!image_files.empty()) {
+        std::cerr << "Last few image files found: ";
+        size_t start_idx = (image_files.size() > 5) ? image_files.size() - 5 : 0;
+        for (size_t i = start_idx; i < image_files.size(); ++i) {
+            std::cerr << image_files[i] << " ";
+        }
+        std::cerr << std::endl;
+    }
+
     return -1;
 }
 
@@ -175,17 +225,17 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
     std::vector<uchar> ransac_mask;
     int inlier_num = 0;
     if (use_5pt) {
-        E = cv::findEssentialMat(tracked_pts_prev, tracked_pts, (fx + fy)/2.0, 
-                                cv::Point2d(cx_d, cy_d), cv::RANSAC, 0.999, 1.0, ransac_mask);
-    }
-    
-    if (!E.empty()) {
-        inlier_num = cv::recoverPose(E, tracked_pts_prev, tracked_pts, R, t, 
-                                    (fx + fy)/2.0, cv::Point2d(cx_d, cy_d), ransac_mask);
+        E = cv::findEssentialMat(tracked_pts_prev, tracked_pts, (fx + fy)/2.0,
+                                 cv::Point2d(cx_d, cy_d), cv::RANSAC, 0.999, 1.0, ransac_mask);
     }
 
-    double inlier_ratio = tracked_pts.empty() ? 0 : 
-                        static_cast<double>(inlier_num)/tracked_pts.size();
+    if (!E.empty()) {
+        inlier_num = cv::recoverPose(E, tracked_pts_prev, tracked_pts, R, t,
+                                     (fx + fy)/2.0, cv::Point2d(cx_d, cy_d), ransac_mask);
+    }
+
+    double inlier_ratio = tracked_pts.empty() ? 0 :
+                          static_cast<double>(inlier_num)/tracked_pts.size();
 
     // --- Update camera pose ---
     cv::Vec3b info_color(0, 255, 0); // Green
@@ -201,12 +251,12 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
     if (img.channels() < 3) {
         cv::cvtColor(img, img, cv::COLOR_GRAY2BGR);
     }
-    
+
     for (size_t i = 0; i < tracked_pts.size(); ++i) {
-        cv::Vec3b color = (ransac_mask.empty() || i >= ransac_mask.size() || ransac_mask[i] == 0) 
-                        ? cv::Vec3b(0, 0, 255)  // Red for outliers
-                        : cv::Vec3b(0, 255, 0);  // Green for inliers
-        
+        cv::Vec3b color = (ransac_mask.empty() || i >= ransac_mask.size() || ransac_mask[i] == 0)
+                          ? cv::Vec3b(0, 0, 255)  // Red for outliers
+                          : cv::Vec3b(0, 255, 0);  // Green for inliers
+
         cv::line(img, tracked_pts_prev[i], tracked_pts[i], color);
         cv::circle(img, tracked_pts[i], 2, color, -1);
     }
@@ -214,9 +264,9 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
     // --- Display info text ---
     Eigen::Matrix4d current_pose = cvMatToEigen(camera_pose_cv);
     double x = current_pose(0,3), y = current_pose(1,3), z = current_pose(2,3);
-    std::string info = cv::format("Frame: %zu/%zu  Inliers: %d (%.1f%%)  Pos: [%.2f, %.2f, %.2f]",
-                                frame_idx+1, image_files.size(), inlier_num, 
-                                inlier_ratio*100, x, y, z);
+    std::string info = cv::format("Frame: %zu/%zu   Inliers: %d (%.1f%%)   Pos: [%.2f, %.2f, %.2f]",
+                                  frame_idx+1, image_files.size(), inlier_num,
+                                  inlier_ratio*100, x, y, z);
     cv::putText(img, info, cv::Point(10, 20), cv::FONT_HERSHEY_PLAIN, 1.2, info_color, 2);
     cv::imshow("Feature Tracking", img);
 
