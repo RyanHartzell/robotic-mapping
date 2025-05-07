@@ -299,6 +299,7 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
     // Convert our R and filtered t to cv::Mat
     cv::Mat R_est = cv::Mat(R);
     cv::Mat t_est = cv::Mat(filtered_pos);
+    // cv::Mat t_est = cv::Mat(t);
 
     // --- Update camera pose ---
     cv::Vec3b info_color(0, 255, 0); // Green
@@ -306,7 +307,7 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
         cv::Mat T = cv::Mat::eye(4, 4, CV_64F);
         R_est.convertTo(T(cv::Rect(0, 0, 3, 3)), CV_64F);
         t_est.convertTo(T(cv::Rect(3, 0, 1, 3)), CV_64F);
-        camera_pose_cv = camera_pose_cv * T.inv();
+        camera_pose_cv = T;
         info_color = cv::Vec3b(0, 0, 255); // Red when updated
     }
 
