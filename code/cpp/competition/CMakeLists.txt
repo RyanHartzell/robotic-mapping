@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.8)
 
 project(slam LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17) # WORKS WITH C++17!!! :) Needed by our epipolar code
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 SET(CMAKE_CXX_FLAGS "-D DEBUG -Wall -Wfatal-errors -Wextra -Wno-unused-variable")
@@ -40,7 +40,9 @@ find_package(Open3D REQUIRED)
 include_directories(include)
 
 set(SOURCES
-    src/competition.cpp    
+    src/keyframe_selection.cpp
+    src/odometry.cpp
+    src/competition.cpp
     )
 add_executable(competition ${SOURCES})
 
@@ -49,3 +51,16 @@ target_link_libraries(competition
                       Eigen3::Eigen
                       Open3D::Open3D
                       )
+
+##########################################
+# # VO_EPIPOLAR
+# include_directories(include)
+
+# FILE(GLOB_RECURSE SOURCES2 "src/keyframe_selection.cpp" "src/odometry.cpp" "src/vo_epipolar.cpp" "src/*.h")
+
+# add_executable(vo_epipolar ${SOURCES2})
+
+# target_link_libraries(vo_epipolar
+#                       ${OpenCV_LIBS}
+#                       Eigen3::Eigen
+#                       )
