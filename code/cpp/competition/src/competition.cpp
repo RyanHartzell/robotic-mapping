@@ -17,6 +17,12 @@
 #include <open3d/Open3D.h>
 #include <Eigen/Core>
 
+// Our includes
+#include "kalman.hpp"
+#include "odometry.hpp"
+#include "keyframeselection.hpp"
+#include <optional>
+
 // Helper function to convert cv::Mat (4x4 CV_64F) to Eigen::Matrix4d
 Eigen::Matrix4d cvMatToEigen(const cv::Mat& mat) {
     Eigen::Matrix4d eigenMat = Eigen::Matrix4d::Identity();
@@ -153,6 +159,26 @@ bool use_5pt = true;
 int min_inlier_num = 50;
 double min_inlier_ratio = 0.1;
 cv::Mat camera_pose_cv = cv::Mat::eye(4, 4, CV_64F);
+cv::Mat camera_pose_tmp = cv::Mat::eye(4, 4, CV_64F);
+
+// --- Our params
+bool initialized = false;
+MotionKalmanFilter kalman_filter;
+
+// RH: EKF impl with orientation info
+// cv::KalmanFilter kalman_filter; 
+
+// VO class
+std::shared_ptr<VOEstimator> Odometry = std::make_shared<KeyPointVOEstimator>();
+reinterpret_cast<KeyPointVOEstimator*>(Odometry.get())->setFeatureType(KeyPointVOEstimator::FeatureType::SIFT);
+
+auto KeyFrameSelector = KeyFrameSelection({Mode::FRAME_INTERVAL}, {1});
+
+// // RH: Declare and init measurement vector: len(6) <- (trans, rpy_euler)
+// cv::Mat measurements(6, 1, CV_64FC1); measurements.setTo(cv::Scalar(0));
+
+// RH: We need a cv:Mat for K (intrinsics)
+cv::Mat K = (cv::Mat_<double>(3, 3) << fx, 0, cx_d, 0, fy, cy_d, 0, 0, 1);
 
 // --- Open3D Visualization Setup ---
 open3d::visualization::Visualizer visualizer;
@@ -200,49 +226,86 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
         gray = img.clone();
     }
 
-    // --- Feature tracking ---
-    std::vector<cv::Point2f> pts_prev, pts;
-    cv::goodFeaturesToTrack(gray_prev, pts_prev, 2000, 0.01, 10);
-    if (pts_prev.empty()) {
-        gray_prev = gray.clone();
-        continue;
+    // Our calculate odometry
+    auto status = Odometry->estimateMotion(gray_prev, gray, K);
+    gray_prev = gray.clone();
+
+    if(KeyFrameSelector.update(status)) {
+
     }
 
-    std::vector<uchar> status;
-    cv::Mat err;
-    cv::calcOpticalFlowPyrLK(gray_prev, gray, pts_prev, pts, status, err);
+    // // --- Feature tracking ---
+    // std::vector<cv::Point2f> pts_prev, pts;
+    // cv::goodFeaturesToTrack(gray_prev, pts_prev, 2000, 0.01, 10);
+    // if (pts_prev.empty()) {
+    //     gray_prev = gray.clone();
+    //     continue;
+    // }
 
+    // std::vector<uchar> status;
+    // cv::Mat err;
+    // cv::calcOpticalFlowPyrLK(gray_prev, gray, pts_prev, pts, status, err);
+
+    // Push back our points into Kaveh's vectors
     std::vector<cv::Point2f> tracked_pts_prev, tracked_pts;
-    for (size_t i = 0; i < status.size(); ++i) {
-        if (status[i]) {
-            tracked_pts_prev.push_back(pts_prev[i]);
-            tracked_pts.push_back(pts[i]);
+    for (size_t i = 0; i < status.pts_prev.size(); i++) {
+        if (status.inlier_mask.at<uchar>(i) > 0) {
+            tracked_pts_prev.push_back(status.pts_prev[i]);
+            tracked_pts.push_back(status.pts_curr[i]);
         }
     }
 
-    // --- Pose estimation ---
-    cv::Mat E, R, t;
-    std::vector<uchar> ransac_mask;
-    int inlier_num = 0;
-    if (use_5pt) {
-        E = cv::findEssentialMat(tracked_pts_prev, tracked_pts, (fx + fy)/2.0,
-                                 cv::Point2d(cx_d, cy_d), cv::RANSAC, 0.999, 1.0, ransac_mask);
-    }
+    // // --- Pose estimation ---
+    // cv::Mat E, R, t;
+    // std::vector<uchar> ransac_mask;
+    // int inlier_num = 0;
+    // if (use_5pt) {
+    //     E = cv::findEssentialMat(tracked_pts_prev, tracked_pts, (fx + fy)/2.0,
+    //                              cv::Point2d(cx_d, cy_d), cv::RANSAC, 0.999, 1.0, ransac_mask);
+    // }
 
-    if (!E.empty()) {
-        inlier_num = cv::recoverPose(E, tracked_pts_prev, tracked_pts, R, t,
-                                     (fx + fy)/2.0, cv::Point2d(cx_d, cy_d), ransac_mask);
-    }
+    // if (!E.empty()) {
+    //     inlier_num = cv::recoverPose(E, tracked_pts_prev, tracked_pts, R, t,
+    //                                  (fx + fy)/2.0, cv::Point2d(cx_d, cy_d), ransac_mask);
+    // }
 
-    double inlier_ratio = tracked_pts.empty() ? 0 :
-                          static_cast<double>(inlier_num)/tracked_pts.size();
+    // Our pose recovery
+    cv::Mat T_inv = status.T.inv();
+    camera_pose_tmp = camera_pose_cv * T_inv;
+    
+    cv::Affine3d camera_pose_affine = cv::Affine3d(camera_pose_tmp);
+    cv::Matx<double, 3, 3> R = camera_pose_affine.rotation();
+    cv::Vec3d t = camera_pose_affine.translation();
+    
+    // RH: Create copies (should really declare these above the loop for speed, but unsure it matters)
+    // cv::Mat R_est = cv::Mat(R);
+    // cv::Mat t_est = cv::Mat(t);
+
+    // double inlier_ratio = tracked_pts.empty() ? 0 :
+    //                       static_cast<double>(inlier_num)/tracked_pts.size();
+
+    // Run our kalman filter update routine
+    if (!initialized) {
+        kalman_filter.initialize(t);
+
+        // RH: 9 pos + 9 orient (dynamics), 3 xyz + 3 rpy (measurement), 0 u (controls), fps=1/30
+        // initKalmanFilter(kalman_filter, 18, 6, 0, (1/30));
+
+        initialized = true;
+    }
+    cv::Point3d predicted_pos = kalman_filter.predict();
+    cv::Point3d filtered_pos = kalman_filter.correct(t);
+
+    // Convert our R and filtered t to cv::Mat
+    cv::Mat R_est = cv::Mat(R);
+    cv::Mat t_est = cv::Mat(filtered_pos);
 
     // --- Update camera pose ---
     cv::Vec3b info_color(0, 255, 0); // Green
-    if (inlier_num > min_inlier_num && inlier_ratio > min_inlier_ratio && !R.empty() && !t.empty()) {
+    if (status.inlier_num > min_inlier_num && status.inlier_ratio > min_inlier_ratio && !R_est.empty() && !t_est.empty()) {
         cv::Mat T = cv::Mat::eye(4, 4, CV_64F);
-        R.convertTo(T(cv::Rect(0, 0, 3, 3)), CV_64F);
-        t.convertTo(T(cv::Rect(3, 0, 1, 3)), CV_64F);
+        R_est.convertTo(T(cv::Rect(0, 0, 3, 3)), CV_64F);
+        t_est.convertTo(T(cv::Rect(3, 0, 1, 3)), CV_64F);
         camera_pose_cv = camera_pose_cv * T.inv();
         info_color = cv::Vec3b(0, 0, 255); // Red when updated
     }
@@ -253,7 +316,7 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
     }
 
     for (size_t i = 0; i < tracked_pts.size(); ++i) {
-        cv::Vec3b color = (ransac_mask.empty() || i >= ransac_mask.size() || ransac_mask[i] == 0)
+        cv::Vec3b color = (status.inlier_mask.empty() || i >= status.inlier_mask.cols || status.inlier_mask.at<uchar>(i) == 0)
                           ? cv::Vec3b(0, 0, 255)  // Red for outliers
                           : cv::Vec3b(0, 255, 0);  // Green for inliers
 
@@ -265,8 +328,8 @@ for (size_t frame_idx = 1; frame_idx < image_files.size(); ++frame_idx) {
     Eigen::Matrix4d current_pose = cvMatToEigen(camera_pose_cv);
     double x = current_pose(0,3), y = current_pose(1,3), z = current_pose(2,3);
     std::string info = cv::format("Frame: %zu/%zu   Inliers: %d (%.1f%%)   Pos: [%.2f, %.2f, %.2f]",
-                                  frame_idx+1, image_files.size(), inlier_num,
-                                  inlier_ratio*100, x, y, z);
+                                  frame_idx+1, image_files.size(), status.inlier_num,
+                                  status.inlier_ratio*100, x, y, z);
     cv::putText(img, info, cv::Point(10, 20), cv::FONT_HERSHEY_PLAIN, 1.2, info_color, 2);
     cv::imshow("Feature Tracking", img);
 
